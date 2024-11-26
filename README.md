@@ -1,6 +1,8 @@
 # CSC417-INTERP
 Python Version 3.12 https://www.python.org/downloads/release/python-3120rc1/ (macOS)
 
+Python interpreter language to mimic the scheme programming language.
+
 ## Running:
 manual input example: ./parse <<< 1 | sh run.sh 
 
@@ -25,5 +27,6 @@ command: chmod +x run.sh parse test.sh
 
 ### MacOS
 Previous commands mentioned within WSL were not used and testing worked fine.
+
 Testing command: sh test.sh
  
