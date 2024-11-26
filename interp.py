@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 import sys
 import json
-import time
-import random
-import webbrowser
+from pprint import pprint
 ###################################################### Program environment ################################################################
 
 # Flag for lexical scoping 
 ## True  -> Lexical
 ## False -> Dyanmic 
 lexicalScopeFlag = True
-
 
 solid_quotes = [
     "People tell you the world looks a certain way. Parents tell you how to think. Schools tell you how to think. TV. Religion. And then at a certain point, if you’re lucky, you realize you can make up your own mind. Nobody sets the rules but you. You can design your own life.”— Carrie Ann Moss",
@@ -25,219 +22,202 @@ solid_quotes = [
     "The happiness of your life depends on the quality of your thoughts.” – Marcus Aurelius"
 ]
 
+# Node class for connecting environments
+class Node: 
+    def __init__(self, data=None, next=None):
+        self.data = data
+        self.next = next
 
 # Enviroment used as a linked list of bindings
-init_env = {
-    "x": 10, 
-    "v": 5,
-    "i": 1,
-    "add": lambda x, y: x + y,
-    "sub": lambda x, y: x - y,
-    "=": lambda x, y: True if x == y else False,
-    "true": True,
-    "false": False,
-    "mul": lambda x, y: x * y,
-    "zero?": lambda n: True if n == 0 else False,
-    "print": lambda s: print(s),
-    "spaces":  " ",
-    "banner":  "--------------------------------------",
-    "time": lambda: time.ctime(),
-    "random": lambda: solid_quotes[random.randint(0, len(solid_quotes) - 1)],
-    "randomQuote": lambda n: solid_quotes[n] if 0 <= n < len(solid_quotes) else solid_quotes[0],
-    "strlen": lambda s: len(s),
-    "positive?": lambda n: True if n > 0 else False,
-    "negative?": lambda n: True if n < 0 else False,
-    "nonPositive?": lambda n: True if n <= 0 else False,
-    "nonNegative?": lambda n: True if n >= 0 else False,
-}
+init_env = Node(("x", 10), 
+    Node(("v", 5),
+    Node(("i", 1),
+    Node(("add",          lambda x, y: x + y),
+    Node(("sub",          lambda x, y: x - y),
+    Node(("equals?",      lambda x, y: True if x == y else False),
+    Node(("true",         True),
+    Node(("false",        False),
+    Node(("mul",          lambda x, y: x * y),
+    Node(("zero?",        lambda n: True if n == 0 else False),
+    Node(("print", print),
+    Node(("printNL",      lambda s: print(s, end="")),
+    Node(("prettyprint",  lambda s: pprint(s)),
+    Node(("endl",         lambda: print("")),
+    Node(("inspo",        lambda n: solid_quotes[n] if 0 <= n < len(solid_quotes) else solid_quotes[0]),
+    Node(("strlen",       lambda s: len(s)),
+    Node(("reverse",      lambda s: s[::-1]),
+    Node(("positive?",    lambda n: True if n > 0 else False),
+    Node(("negative?",    lambda n: True if n < 0 else False),
+    Node(("nonPositive?", lambda n: True if n <= 0 else False),
+    Node(("nonNegative?", lambda n: True if n >= 0 else False),
+    Node(("RED",          lambda str: f"\033[31m{str}\033[0m"),
+    Node(("GREEN",        lambda str: f"\033[32m{str}\033[0m"),
+    Node(("YELLOW",       lambda str: f"\033[33m{str}\033[0m"),
+    Node(("BLUE",         lambda str: f"\033[34m{str}\033[0m"),
+    Node(("PURPLE",       lambda str: f"\033[35m{str}\033[0m"),
+    Node(("WHITE",        lambda str: f"\033[0m{str}\033[0m"),
+    Node(("SET_RED",      lambda: print("\033[31m", end="")),
+    Node(("SET_GREEN",    lambda: print("\033[32m", end="")),
+    Node(("SET_YELLOW",   lambda: print("\033[33m", end="")),
+    Node(("SET_BLUE",     lambda: print("\033[34m", end="")),
+    Node(("SET_PURPLE",   lambda: print("\033[35m", end="")),
+    Node(("SET_WHITE",    lambda: print("\033[0m", end="")),
+    Node(("CUSTOM_COLOR", lambda n: print(f"\033[38;5;{n}m", end="")),
+    None)))))))))))))))))))))))))))))))))
+)
+
+def createPredicate(string):
+    def predicate(expression):
+        if isinstance(expression, list):
+            return expression[0] == string
+        else:
+            return expression.get(string) is not None
+    return predicate
+
+isUserDefined =           createPredicate("UserDefined")
+isLet =                   createPredicate("Let")
+isCond =                  createPredicate("Cond")
+isBlock =                 createPredicate("Block")
+isLambda =                createPredicate("Lambda")
+isAssignment =            createPredicate("Assignment")
 
 ##################################################### End Program Environment #############################################################
 
-
-# Main function
 def main():
     variable = json.loads(input())
     result = parseInput(variable, init_env)
-    if result is not None:
-        print(result)
-        exit(0)
-    
+    print(result)
     exit(0)
 
-# Function parses input and computes the result (eval)
-def parseInput(expression, environment = None):
-    try:
-        if isinstance(expression, int):
-            return(integerCheck(expression))
-    except ValueError as e:
-        print("ERROR: Input is not a valid integer.", file=sys.stderr)
-        sys.exit(1)
+# Function parses input and computes the result (eval) 
+def parseInput(expression, environment):
+    # Debug
+    # pprint(expression)
 
-    if isinstance(expression, str):
-        return(expression)
-
-    innerParam = next( iter(expression) )
-
-    if innerParam == "Lambda":
-        return applyLambda(expression, environment)
-
-    # For sure works.
-    elif innerParam == "Cond":
-        return condEval(expression["Cond"], environment)
-
-    elif innerParam == "Identifier":
-        return identifierCheck(expression["Identifier"], environment)
-
-    elif innerParam == "Let":
-        # print("let function called")
-        return applyLet(expression[innerParam], environment)
-    
-    elif innerParam == "Block":
-        for i in range(len(expression["Block"])):
-            parseInput(expression["Block"][i], environment)
-            if i == len(expression["Block"]) - 1:
-                return parseInput(expression["Block"][i], environment)
-    
-    elif innerParam == "Application":
-        result = expression['Application']
-        if len(result) == 0:
-            return None
-
-        if "Lambda" in result[0]:
-            lambdaFunction = lambdaCheck(result[0])
-            args = []
-            for arg in result[1:]:
-                parsedArguement = parseInput(arg, environment)
-                args.append(parsedArguement)
-
-            if len(args) >= len(lambdaFunction['params']):
-                return lambdaEval(lambdaFunction, args, environment)
-            else: 
-                print("ERROR: Invalid arguments for Lambda application.", file=sys.stderr)
-                sys.exit(1)
-
-        # Most difficult portion
-        elif "Identifier" in result[0]:
-            functionIdentifier = result[0]['Identifier']
-            if functionIdentifier in environment:
-
-                function = environment[functionIdentifier]
-                if isinstance(function, dict) and "params" in function and "body" in function:
-                    # Re-worked 
-                    parsedArgs = [parseInput(arg, environment) for arg in result[1:]]
-                    return lambdaEval(function, parsedArgs, environment)
-                else:
-                    return applicationCheck(result, environment)
-                
-        elif "Block" in result[0]:
-            innerBlock = result[0]['Block']
-
-            for expr in innerBlock[:-1]:
-                parseInput(expr, environment)
-            
-            prevExpression = innerBlock[-1]
-            if isinstance(prevExpression, dict) and "Identifier" in prevExpression:
-                blockEvaluated = prevExpression["Identifier"]
-
-            else:
-                print("ERROR: Invalid function identifier.", file=sys.stderr)
-                sys.exit(1)
-
-            if blockEvaluated in environment:
-                function = environment[blockEvaluated]
-                if callable(function):
-                    args = []
-                    for arg in result[1:]:
-                        parsedArguement = parseInput(arg, environment)
-                        args.append(parsedArguement)
-                    return function(*args)
-                
-                else:
-                    print(f"ERROR: Uncallable function {blockEvaluated}.", file=sys.stderr)
-                    sys.exit(1)
-            else:
-                print("ERROR: Invalid function identifier.", file=sys.stderr)
-                sys.exit(1)
-        else:
-            return applicationCheck(result, environment)
-    return None
-# End function
-
-# Integer check 
-def integerCheck(expression):
-    maxSigned = (1 << 63) - 1
-    minSigned = maxSigned * -1
-    try: 
-        convertedVal = int(expression)
-    except ValueError:
-        print("ERROR: Input string is not a valid integer.", file=sys.stderr)
-        sys.exit(1)
-
-    if maxSigned < convertedVal or minSigned > convertedVal:
-        print("ERROR: Input is not within the range representable by a signed 64-bit integer.", file=sys.stderr)
-        sys.exit(1)
-    return convertedVal
-
-# Strings/Identifiers
-def identifierCheck(expression, environment):
+    # Integer 
     if isinstance(expression, int):
+        maxSigned = (1 << 63) - 1
+        minSigned = maxSigned * -1
+        try: 
+            convertedVal = int(expression)
+        except ValueError:
+            print("ERROR: Input string is not a valid integer.", file=sys.stderr)
+            sys.exit(1)
+
+        if maxSigned < convertedVal or minSigned > convertedVal:
+            print("ERROR: Input is not within the range representable by a signed 64-bit integer.", file=sys.stderr)
+            sys.exit(1)
+        return convertedVal
+    
+    # String 
+    if isinstance(expression, str):
         return expression
     
-    
-    elif expression in environment:
-
-        if expression == "time":
-            timeString = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(timeString)
-            exit(0)
-        return environment[expression]
-    
-    elif isinstance(expression, str):
+    # Function
+    if callable(expression):
         return expression
-
-    else:
-        print(f"ERROR: Unknown identifier given '{expression}'.", file=sys.stderr)
-        sys.exit(1)
-
-# Application 
-def applicationCheck(expression, environment):
-    arguments = []
-    binding = expression[0]['Identifier']
-    if binding in environment:
-        # print('binding', binding)
-        function = environment[binding]
-
-    else:
-        print(f"ERROR: Unappliable function {binding}.",  file=sys.stderr)
-        sys.exit(1)
-
-    for arg in expression[1:]:
-        if isinstance(arg, dict):
-            parsedArg = parseInput(arg, environment)
-            arguments.append(parsedArg)
-
-        else:
-            arguments.append(arg)
+    # Block 
+    if isBlock(expression):
+        return blockEval(expression['Block'], environment)
+    # Lambda
+    if isLambda(expression):
+        newExpression = expression['Lambda']
+        param = newExpression[0]
+        body = newExpression[1]
+        return ['UserDefined', param, body, environment]
+    # Assignment
+    if isAssignment(expression):
+        assignment = expression['Assignment']
+        return applyAssignment(assignment, environment)
+    if isLet(expression):
+        return applyLet(expression["Let"], environment)
+    # Cond
+    if isCond(expression):
+        conditionals = expression['Cond']
+        return condEval(conditionals, environment)
+    
+    # Identifier 
     try:
-        return function(*arguments)
-    except TypeError as e:
-        print(f"ERROR: Invalid arguments for function '{binding}': {arguments}", file=sys.stderr)
-        print(f"Details: {e}", file=sys.stderr)
-        sys.exit(1)
+        statement = expression['Identifier']
+        return lookup_env(statement, environment)
+    except:
+       None
 
-# Lambda
-def lambdaCheck(expression):
+    # App
+    if applicationCheck(expression):
+        application = expression['Application']
+        return funcExpandAndApply(application[0], application[1:], environment)
+    
+# Using apply function using operands
+def funcExpandAndApply(func, arguments, environment):
+    operator = parseInput(func, environment)
+    parsedOperators = []
+    for arg in arguments:
+        parsedValue = parseInput(arg, environment)
+        parsedOperators.append(parsedValue)
+
+    try:
+        if callable(operator):
+            return operator(*parsedOperators)
+        elif isUserDefined:
+            # pprint(func) # debugging
+            if lexicalScopeFlag is True:
+                environment = operator[3] # environment
+            
+            # Add to list 
+            newBinding = None
+            for key, data in reversed(list(zip(stripParams(operator), parsedOperators))):
+                newBinding = Node((key, data), newBinding)
+           
+            newEnv = reallocEnv(newBinding, environment)
+            return parseInput(operator[2], newEnv) # body 
+        
+        else: 
+            print(f"ERROR: Un-appliable function: {operator}", file=sys.stderr)
+            sys.exit(1)
+    # Exception case 
+    except Exception as e: 
+        print(f"ERROR: Failed with exception: {e} for {parsedOperators}", file=sys.stderr)
+        exit(1)
+
+# Responsible for replacing existing value 
+def reassign(key, newValue, environment):
+    if environment is None:
+        print(f"ERROR: Unbound Identifier: {key}")
+        exit(1)
+    if environment.data[0] == key:
+        environment.data = (key, newValue)  
+        return newValue
+    else:
+        return reassign(key, newValue, environment.next)
+    
+# Responsible for applying the assignment to existing variable
+def applyAssignment(exp, env):
+    key = exp[0]["Identifier"] 
+    rightHandSide = exp[1]               
+    data = parseInput(rightHandSide, env)          
+    reassign(key, data, env)    
+    return data   
+
+# Applying 'let' and creating new environment with data  
+def applyLet(expression, env):
+    key = expression[0]["Identifier"] 
+    rightHandSide = expression[1]
+    body = expression[2]
+    data = parseInput(rightHandSide, env)
+    return parseInput(body, reallocEnv(Node((key, data)), env))
+
+# Parses parameters 
+def stripParams(func):
     params = []
-    for p in expression['Lambda'][0]['Parameters']:
-        params.append(p['Identifier'])
-    body = expression['Lambda'][1]['Block']
-    return {'params': params, 
-            'body': body }
+    for identifier in func[1]['Parameters']:
+        params.append(identifier['Identifier'])
+    return params
 
 # Evaluates conditions
 def condEval(expression, env):
     if len(expression) == 0:
-        return False
+        return False;
     # Parse conditionals in expression
     for condition in expression:
         params = condition['Clause']
@@ -247,16 +227,6 @@ def condEval(expression, env):
         if isTrue(truth):
             return parseInput(statement, env)
     return False
-
-# Evaluates if true or false
-def isTrue(value):
-   if value == init_env['true']:
-        return True
-   if value == init_env['false']:
-        return False
-   print(f"ERROR: Not a boolean {value}", file=sys.stderr)
-   exit(1)
-
 
 # Evaluates blocks
 def blockEval(expression, env):
@@ -268,67 +238,42 @@ def blockEval(expression, env):
         parseInput(expression[0], env)
         return blockEval(expression[1:], env)
 
+# link environment with new bindings
+def reallocEnv(newBinding, env):
+    if newBinding is None:
+       return env
+    bindings = newBinding.data
+    return reallocEnv(newBinding.next, newBind(bindings[0], bindings[1], env))
 
-# Let function (new)
-def applyLet(expression, environment):
-    # Tuple <----- REQUIRED
-    variable, variableExpression = expression
-    identifier = variable['Identifier']
-    value = parseInput(variableExpression, environment)
+# Evaluates if true or false
+def isTrue(value):
+    true_value = lookup_env("true", init_env)
+    false_value = lookup_env("false", init_env)
+    if value == true_value:
+        return True
+    if value == false_value:
+        return False
+    print(f"ERROR: Not a boolean {value}", file=sys.stderr)
+    exit(1)
 
-    if isinstance(value, dict) and 'Lambda' in value:
-        value = applyLambda(value, environment)
+# App
+def applicationCheck(expression):
+   if type(expression) is dict and "Application" in expression:
+       return True
+   return False
 
-    if lexicalScopeFlag is True and identifier in environment:
-        return value
+# Lookup -- Node
+def lookup_env(key, env):
+    if env is None:
+        return key
+    if env.data[0] == key:
+        return env.data[1]
+    else:
+        return lookup_env(key, env.next)
 
-    environment[identifier] = value
-    return value
+# New binding 
+def newBind(key, data, env):
+    return Node((key, data), env)
 
-
-# Applies lambda 
-def applyLambda(expression, environment): 
-    params = expression['Lambda'][0]['Parameters']
-    block = expression['Lambda'][1]['Block']
-
-    # Lambda function
-    def function(*arguments):
-        newEnvironment = environment.copy()  
-
-        for i in range(len(params)):
-            param = params[i]
-            arg = arguments[i]
-            newEnvironment[param['Identifier']] = parseInput(arg, environment)
-
-        result = None
-
-        for expr in block:
-            result = parseInput(expr, newEnvironment)
-        return result
-    return function
-
-# Evaluates Lambda 
-def lambdaEval(function, arguments, newBindings = None):
-    if len(arguments) != len(function['params']):
-        print("ERROR: Invalid arguements when evaluating lambda function.", file=sys.stderr)
-        sys.exit(1)
-
-    newBindings = newBindings or init_env.copy()
-
-    for i in range(len(function['params'])):
-        param = function['params'][i]
-        arg = arguments[i]
-        newBindings[param] = arg
-
-    if len(function['params']) > 1:
-        key = function['params'][0]
-        newBindings[key] = function
-
-    result = None
-    for expr in function['body']:
-        result = parseInput(expr, newBindings)
-    return result
-
-# Run Main
+# main function call 
 main()
-
